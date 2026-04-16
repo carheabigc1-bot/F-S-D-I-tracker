@@ -92,7 +92,7 @@ if page == "📊 Dashboard":
                     st.checkbox(f"🏋️ Workout planned", key=f"workout_{i}")
                     st.text_area("Notes", height=60, key=f"notes_{i}")
                     if st.button(f"Save {day_name}", key=f"save_{i}"):
-                        st.success(f"Saved {day_name}!")
+                        st.success(f"Saved plan for {day_name}!")
 
     st.divider()
 
@@ -101,6 +101,8 @@ if page == "📊 Dashboard":
         if not proj_df.empty:
             for _, p in proj_df.head(6).iterrows():
                 st.progress(p['progress']/100, text=f"{p['name']} — {p['progress']}%")
+        else:
+            st.info("No active projects yet.")
 
 # ====================== FITNESS (with Delete) ======================
 elif page == "🏋️ Fitness":
@@ -214,9 +216,9 @@ elif page == "🍽️ Diet":
                         st.success(f"Added {item}")
                         st.rerun()
 
-            # Grocery list display
             c.execute('''CREATE TABLE IF NOT EXISTS grocery_list (id INTEGER PRIMARY KEY, item TEXT, quantity TEXT, category TEXT, bought INTEGER DEFAULT 0)''')
             conn.commit()
+
             grocery_df = pd.read_sql("SELECT * FROM grocery_list ORDER BY category, item", conn)
 
             if not grocery_df.empty:
@@ -286,17 +288,92 @@ elif page == "💰 Investments":
             st.success(f"Deleted {ticker_to_delete}")
             st.rerun()
 
-# ====================== TO-DO LIST & PROJECTS ======================
-# (Full working code for both - previously missing)
-
+# ====================== TO-DO LIST ======================
 elif page == "✅ To-Do List":
     st.header("✅ To-Do List")
-    # ... (full To-Do code from previous working version)
 
+    with st.form("add_todo"):
+        task = st.text_input("New Task")
+        due = st.date_input("Due Date", value=date.today())
+        priority = st.selectbox("Priority", ["High", "Medium", "Low"])
+        if st.form_submit_button("➕ Add Task"):
+            c.execute("INSERT INTO todos (task, due_date, priority, completed) VALUES (?, ?, ?, 0)",
+                     (task, str(due), priority))
+            conn.commit()
+            st.success("✅ Task added!")
+            st.rerun()
+
+    df = pd.read_sql("SELECT * FROM todos ORDER BY completed, due_date", conn)
+    if not df.empty:
+        st.subheader("Your Tasks")
+        for _, row in df.iterrows():
+            col1, col2, col3, col4 = st.columns([0.6, 0.15, 0.15, 0.1])
+            with col1:
+                checked = st.checkbox(row['task'], value=bool(row['completed']), key=f"todo_{row['id']}")
+                if checked != bool(row['completed']):
+                    c.execute("UPDATE todos SET completed = ? WHERE id = ?", (int(checked), row['id']))
+                    conn.commit()
+                    st.rerun()
+            with col2:
+                st.caption(f"Due: {row['due_date']}")
+            with col3:
+                st.caption(row['priority'])
+            with col4:
+                if st.button("🗑️", key=f"del_todo_{row['id']}"):
+                    c.execute("DELETE FROM todos WHERE id=?", (row['id'],))
+                    conn.commit()
+                    st.rerun()
+
+        if st.button("🗑️ Clear Completed Tasks"):
+            c.execute("DELETE FROM todos WHERE completed = 1")
+            conn.commit()
+            st.success("Cleared completed tasks!")
+            st.rerun()
+
+# ====================== PROJECTS ======================
 elif page == "📋 Projects":
     st.header("📋 Projects & Goals")
-    # ... (full Projects code from previous working version)
 
-st.caption("💾 All data saved locally in tracker.db")
+    with st.form("add_project"):
+        name = st.text_input("Project / Goal Name")
+        desc = st.text_area("Description (optional)")
+        due = st.date_input("Target Date", value=date.today())
+        status = st.selectbox("Status", ["Not Started", "In Progress", "Review", "Completed"])
+        progress = st.slider("Progress (%)", 0, 100, 0)
+        
+        if st.form_submit_button("➕ Add Project"):
+            c.execute("""INSERT INTO projects (name, description, status, due_date, progress) 
+                         VALUES (?, ?, ?, ?, ?)""", 
+                     (name, desc, status, str(due), progress))
+            conn.commit()
+            st.success("✅ Project added!")
+            st.rerun()
+
+    df = pd.read_sql("SELECT * FROM projects ORDER BY due_date", conn)
+    if not df.empty:
+        st.subheader("Your Projects")
+        for _, row in df.iterrows():
+            col1, col2, col3 = st.columns([0.5, 0.3, 0.2])
+            with col1:
+                st.write(f"**{row['name']}**")
+                if row['description']:
+                    st.caption(row['description'])
+            with col2:
+                st.progress(row['progress'] / 100)
+                st.caption(f"{row['progress']}% • Due: {row['due_date']}")
+            with col3:
+                new_status = st.selectbox("Status", 
+                    ["Not Started", "In Progress", "Review", "Completed"], 
+                    index=["Not Started", "In Progress", "Review", "Completed"].index(row['status']),
+                    key=f"proj_{row['id']}")
+                if new_status != row['status']:
+                    c.execute("UPDATE projects SET status = ? WHERE id = ?", (new_status, row['id']))
+                    conn.commit()
+                    st.rerun()
+                
+                if st.button("🗑️ Delete", key=f"del_proj_{row['id']}"):
+                    c.execute("DELETE FROM projects WHERE id=?", (row['id'],))
+                    conn.commit()
+                    st.rerun()
 
 st.caption("💾 All data saved locally in tracker.db | Built with Python + Streamlit")
