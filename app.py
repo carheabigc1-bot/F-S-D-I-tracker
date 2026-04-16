@@ -29,7 +29,7 @@ page = st.sidebar.radio("Navigation",
     ["📊 Dashboard", "🏋️ Fitness", "😴 Sleep", "🍽️ Diet & grocery list", "💰 Investments", 
      "✅ To-Do List", "📋 Projects"], label_visibility="collapsed")
 
-# ====================== DASHBOARD - WITH DAILY PLANNING CALENDAR ======================
+# ====================== DASHBOARD - WITH WEEKLY PLANNING CALENDAR ======================
 if page == "📊 Dashboard":
     st.header("📊 Daily Overview")
 
@@ -41,7 +41,7 @@ if page == "📊 Dashboard":
     todo_df = pd.read_sql("SELECT * FROM todos WHERE completed = 0", conn)
     proj_df = pd.read_sql("SELECT * FROM projects WHERE status != 'Completed'", conn)
 
-    # Top row: Metrics + Daily Planning Calendar
+    # Top row: Metrics + Weekly Planning Calendar
     col1, col2 = st.columns([3, 2])
 
     with col1:
@@ -68,56 +68,20 @@ if page == "📊 Dashboard":
             st.metric("✅ Pending Tasks", len(todo_df))
 
     with col2:
-        # Daily Planning Calendar - Bordered box on the right
+        # Weekly Planning Calendar - Bordered section
         with st.container(border=True):
-            st.subheader("📅 Today's Plan")
+            st.subheader("📅 Weekly Plan")
             today = date.today()
-            st.caption(f"**{today.strftime('%A, %B %d, %Y')}**")
+            st.caption(f"Week of {today.strftime('%B %d, %Y')}")
 
-            with st.form("daily_plan"):
-                wake_up = st.time_input("Wake Up Time", value=datetime.strptime("07:00", "%H:%M").time())
-                workout_time = st.time_input("Workout Time", value=datetime.strptime("17:00", "%H:%M").time())
-                main_goal = st.text_input("Main Goal for Today")
-                notes = st.text_area("Additional Notes / Reminders", height=100)
-                
-                if st.form_submit_button("✅ Save Today's Plan"):
-                    st.success("Today's plan saved!")
-                    st.rerun()
+            # Simple weekly planner (Monday to Sunday)
+            days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+            start_of_week = today - pd.Timedelta(days=today.weekday())
 
-            # Quick action buttons
-            st.caption("Quick Actions:")
-            col_a, col_b = st.columns(2)
-            with col_a:
-                if st.button("Log Workout", use_container_width=True):
-                    st.switch_page("🏋️ Fitness")
-            with col_b:
-                if st.button("Log Meal", use_container_width=True):
-                    st.switch_page("🍽️ Diet")
-
-    st.divider()
-
-    # Pending Tasks and Active Projects
-    col3, col4 = st.columns(2)
-
-    with col3:
-        with st.container(border=True):
-            st.subheader("📌 Pending To-Do Tasks")
-            if not todo_df.empty:
-                for _, task in todo_df.head(8).iterrows():
-                    st.write(f"• {task['task']} ({task['priority']}) — Due: {task['due_date']}")
-            else:
-                st.info("No pending tasks today.")
-
-    with col4:
-        with st.container(border=True):
-            st.subheader("📋 Active Projects")
-            if not proj_df.empty:
-                for _, p in proj_df.head(5).iterrows():
-                    st.progress(p['progress']/100, text=f"{p['name']} — {p['progress']}%")
-            else:
-                st.info("No active projects.")
-
-    st.info("Use the sidebar to log new data.")
+            for i, day_name in enumerate(days):
+                day_date = start_of_week + pd.Timedelta(days=i)
+                with st.expander(f"{day_name} ({day_date.strftime('%b %d')})", expanded=(day_date == today)):
+                    goal = st.text_input(f"Main Goal -
     
 # ====================== FITNESS ======================
 elif page == "🏋️ Fitness":
