@@ -4,9 +4,8 @@ import sqlite3
 from datetime import date
 import yfinance as yf
 import plotly.express as px
-from datetime import date, datetime
 
-# ====================== DATABASE ======================
+# ====================== DATABASE SETUP ======================
 conn = sqlite3.connect('tracker.db', check_same_thread=False)
 c = conn.cursor()
 
@@ -18,30 +17,28 @@ c.execute('''CREATE TABLE IF NOT EXISTS todos (id INTEGER PRIMARY KEY, task TEXT
 c.execute('''CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY, name TEXT, description TEXT, status TEXT, due_date TEXT, progress INTEGER DEFAULT 0)''')
 conn.commit()
 
-# ====================== APP CONFIG ======================
-st.set_page_config(page_title="My Life Tracker", layout="wide", page_icon="🏋️", initial_sidebar_state="expanded")
+# ====================== APP CONFIG - CENTERED TITLE ======================
+st.set_page_config(page_title="My All-in-One Life Tracker", layout="wide", page_icon="🏋️", initial_sidebar_state="expanded")
 
-st.title("🏋️‍♂️💰 My All-in-One Life Tracker")
-st.markdown("Track **Fitness • Sleep • Diet • Investments • Tasks • Projects**")
+# Centered Main Title (visible on ALL pages)
+st.markdown("""
+    <h1 style='text-align: center; margin-bottom: 10px;'>
+        🏋️‍♂️💰 My All-in-One Life Tracker
+    </h1>
+""", unsafe_allow_html=True)
 
-# Use radio for permanent visible navigation
+st.markdown("<p style='text-align: center; color: #888; margin-bottom: 30px;'>Track Fitness • Sleep • Diet • Investments • Tasks • Projects</p>", 
+            unsafe_allow_html=True)
+
 page = st.sidebar.radio("Navigation", 
-    ["📊 Dashboard", "🏋️ Fitness", "😴 Sleep", "🍽️ Diet & grocery list", "💰 Investments", 
+    ["📊 Dashboard", "🏋️ Fitness", "😴 Sleep", "🍽️ Diet", "💰 Investments", 
      "✅ To-Do List", "📋 Projects"], label_visibility="collapsed")
 
-# ====================== DASHBOARD - VERTICAL OVERVIEW LEFT + WEEKLY RIGHT ======================
+# ====================== DASHBOARD (No Title Here) ======================
 if page == "📊 Dashboard":
-    # Centered Main Title
-    st.markdown("""
-        <h1 style='text-align: center; margin-bottom: 10px;'>
-            🏋️‍♂️💰 My All-in-One Life Tracker
-        </h1>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("<p style='text-align: center; color: #888; margin-bottom: 30px;'>Track Fitness • Sleep • Diet • Investments • Tasks • Projects</p>", 
-                unsafe_allow_html=True)
+    st.header("📊 Daily Overview")
 
-    # Load data from all sections
+    # Load data
     inv_df = pd.read_sql("SELECT * FROM investments", conn)
     fit_df = pd.read_sql("SELECT * FROM fitness", conn)
     sleep_df = pd.read_sql("SELECT * FROM sleep", conn)
@@ -53,7 +50,6 @@ if page == "📊 Dashboard":
     col_left, col_right = st.columns([2, 1])
 
     with col_left:
-        # Vertically stacked bordered overview sections
         with st.container(border=True):
             st.subheader("💰 Portfolio")
             if not inv_df.empty:
@@ -88,7 +84,6 @@ if page == "📊 Dashboard":
                     st.write(f"• {task['task']} ({task['priority']}) — Due: {task['due_date']}")
 
     with col_right:
-        # Weekly Planning Calendar - Bordered on the right
         with st.container(border=True):
             st.subheader("📅 Weekly Plan")
             today = date.today()
