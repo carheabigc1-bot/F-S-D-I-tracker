@@ -68,7 +68,7 @@ if page == "📊 Dashboard":
             st.metric("✅ Pending Tasks", len(todo_df))
 
     with col2:
-        # Weekly Planning Calendar - Bordered section
+        # Weekly Planning Calendar - Bordered section on the right
         with st.container(border=True):
             st.subheader("📅 Weekly Plan")
             today = date.today()
@@ -80,8 +80,41 @@ if page == "📊 Dashboard":
 
             for i, day_name in enumerate(days):
                 day_date = start_of_week + pd.Timedelta(days=i)
-                with st.expander(f"{day_name} ({day_date.strftime('%b %d')})", expanded=(day_date == today)):
-                    goal = st.text_input(f"Main Goal -
+                with st.expander(f"{day_name} ({day_date.strftime('%b %d')})", 
+                               expanded=(day_date == today)):
+                    goal = st.text_input(f"Main Goal - {day_name}", key=f"goal_{i}")
+                    workout = st.checkbox(f"🏋️ Workout planned", key=f"workout_{i}")
+                    notes = st.text_area("Notes", height=60, key=f"notes_{i}")
+                    
+                    if st.button(f"Save {day_name}", key=f"save_{i}"):
+                        st.success(f"Saved plan for {day_name}!")
+
+            st.caption("Tip: Expand each day to plan your week.")
+
+    st.divider()
+
+    # Second row - Pending Tasks and Active Projects
+    col3, col4 = st.columns(2)
+
+    with col3:
+        with st.container(border=True):
+            st.subheader("📌 Pending To-Do Tasks")
+            if not todo_df.empty:
+                for _, task in todo_df.head(8).iterrows():
+                    st.write(f"• {task['task']} ({task['priority']}) — Due: {task['due_date']}")
+            else:
+                st.info("No pending tasks today.")
+
+    with col4:
+        with st.container(border=True):
+            st.subheader("📋 Active Projects")
+            if not proj_df.empty:
+                for _, p in proj_df.head(5).iterrows():
+                    st.progress(p['progress']/100, text=f"{p['name']} — {p['progress']}%")
+            else:
+                st.info("No active projects.")
+
+    st.info("Use the sidebar to log new data.")
     
 # ====================== FITNESS ======================
 elif page == "🏋️ Fitness":
