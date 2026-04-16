@@ -29,7 +29,7 @@ page = st.sidebar.radio("Navigation",
     ["📊 Dashboard", "🏋️ Fitness", "😴 Sleep", "🍽️ Diet & grocery list", "💰 Investments", 
      "✅ To-Do List", "📋 Projects"], label_visibility="collapsed")
 
-# ====================== DASHBOARD - CENTERED TITLE + HORIZONTAL OVERVIEW ======================
+# ====================== DASHBOARD - VERTICAL OVERVIEW LEFT + WEEKLY RIGHT ======================
 if page == "📊 Dashboard":
     # Centered Main Title
     st.markdown("""
@@ -49,41 +49,45 @@ if page == "📊 Dashboard":
     todo_df = pd.read_sql("SELECT * FROM todos WHERE completed = 0", conn)
     proj_df = pd.read_sql("SELECT * FROM projects WHERE status != 'Completed'", conn)
 
-    # Main content area with two columns: Overview (left) + Weekly Plan (right)
-    col_overview, col_weekly = st.columns([2, 1])
+    # Two-column layout: Vertical Overview (Left) + Weekly Planner (Right)
+    col_left, col_right = st.columns([2, 1])
 
-    with col_overview:
-        # Horizontal Overview Metrics - Bordered Section
+    with col_left:
+        # Vertically stacked bordered overview sections
         with st.container(border=True):
-            st.subheader("📊 Overview")
-            metric_row1 = st.columns(4)
-            with metric_row1[0]:
-                if not inv_df.empty:
-                    portfolio = inv_df.groupby('ticker')['shares'].sum().reset_index()
-                    portfolio['current_price'] = portfolio['ticker'].apply(
-                        lambda x: yf.Ticker(x).history(period="1d")['Close'].iloc[-1] 
-                        if not yf.Ticker(x).history(period="1d").empty else 0)
-                    total_value = (portfolio['shares'] * portfolio['current_price']).sum()
-                    st.metric("💰 Portfolio Value", f"${total_value:,.2f}")
-                else:
-                    st.metric("💰 Portfolio Value", "$0.00")
+            st.subheader("💰 Portfolio")
+            if not inv_df.empty:
+                portfolio = inv_df.groupby('ticker')['shares'].sum().reset_index()
+                portfolio['current_price'] = portfolio['ticker'].apply(
+                    lambda x: yf.Ticker(x).history(period="1d")['Close'].iloc[-1] 
+                    if not yf.Ticker(x).history(period="1d").empty else 0)
+                total_value = (portfolio['shares'] * portfolio['current_price']).sum()
+                st.metric("Total Portfolio Value", f"${total_value:,.2f}")
+            else:
+                st.metric("Total Portfolio Value", "$0.00")
 
-            with metric_row1[1]:
-                st.metric("🏋️ Workouts", len(fit_df))
+        with st.container(border=True):
+            st.subheader("🏋️ Fitness")
+            st.metric("Workouts Logged", len(fit_df))
 
-            with metric_row1[2]:
-                avg_sleep = sleep_df['hours'].mean() if not sleep_df.empty else 0
-                st.metric("😴 Avg Sleep", f"{avg_sleep:.1f} hrs")
+        with st.container(border=True):
+            st.subheader("😴 Sleep")
+            avg_sleep = sleep_df['hours'].mean() if not sleep_df.empty else 0
+            st.metric("Average Sleep", f"{avg_sleep:.1f} hrs")
 
-            with metric_row1[3]:
-                st.metric("✅ Pending Tasks", len(todo_df))
+        with st.container(border=True):
+            st.subheader("🍽️ Diet")
+            today_cal = diet_df[diet_df['date'] == str(date.today())]['calories'].sum() if not diet_df.empty else 0
+            st.metric("Calories Today", f"{today_cal:.0f}")
 
-            # Second row of metrics
-            if not diet_df.empty:
-                today_cal = diet_df[diet_df['date'] == str(date.today())]['calories'].sum()
-                st.metric("🍽️ Calories Today", f"{today_cal:.0f}")
+        with st.container(border=True):
+            st.subheader("✅ Pending Tasks")
+            st.metric("Pending Tasks", len(todo_df))
+            if not todo_df.empty:
+                for _, task in todo_df.head(5).iterrows():
+                    st.write(f"• {task['task']} — Due: {task['due_date']}")
 
-    with col_weekly:
+    with col_right:
         # Weekly Planning Calendar - Bordered on the right
         with st.container(border=True):
             st.subheader("📅 Weekly Plan")
@@ -91,46 +95,7 @@ if page == "📊 Dashboard":
             st.caption(f"Week of {today.strftime('%B %d, %Y')}")
 
             days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-            start_of_week = today - pd.Timedelta(days=today.weekday())
-
-            for i, day_name in enumerate(days):
-                day_date = start_of_week + pd.Timedelta(days=i)
-                with st.expander(f"{day_name} ({day_date.strftime('%b %d')})", 
-                               expanded=(day_date == today)):
-                    goal = st.text_input(f"Main Goal - {day_name}", key=f"goal_{i}")
-                    workout = st.checkbox(f"🏋️ Workout planned", key=f"workout_{i}")
-                    notes = st.text_area("Notes", height=60, key=f"notes_{i}")
-                    
-                    if st.button(f"Save {day_name}", key=f"save_{i}"):
-                        st.success(f"Saved plan for {day_name}!")
-
-            st.caption("Tip: Expand each day to plan your week.")
-
-    st.divider()
-
-    # Bottom row - Pending Tasks and Active Projects
-    col_tasks, col_projects = st.columns(2)
-
-    with col_tasks:
-        with st.container(border=True):
-            st.subheader("📌 Pending To-Do Tasks")
-            if not todo_df.empty:
-                for _, task in todo_df.head(8).iterrows():
-                    st.write(f"• {task['task']} ({task['priority']}) — Due: {task['due_date']}")
-            else:
-                st.info("No pending tasks today.")
-
-    with col_projects:
-        with st.container(border=True):
-            st.subheader("📋 Active Projects")
-            if not proj_df.empty:
-                for _, p in proj_df.head(5).iterrows():
-                    st.progress(p['progress']/100, text=f"{p['name']} — {p['progress']}%")
-            else:
-                st.info("No active projects.")
-
-    st.info("Use the sidebar to log new data.")
-    
+            start_of_week = today - pd.Timedelta(days=today.week
 # ====================== FITNESS ======================
 elif page == "🏋️ Fitness":
     st.header("🏋️ Fitness Tracker")
