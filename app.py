@@ -154,7 +154,7 @@ elif page == "😴 Sleep":
         st.subheader("Sleep History")
         st.dataframe(df, width='stretch')
 
-# ====================== DIET + GROCERY LIST ======================
+# ====================== DIET + GROCERY LIST (with bordered tabs) ======================
 elif page == "🍽️ Diet":
     st.header("🍽️ Diet Tracker")
 
@@ -162,94 +162,101 @@ elif page == "🍽️ Diet":
 
     # ====================== LOG MEAL TAB ======================
     with tab1:
-        with st.form("log_diet"):
-            col1, col2 = st.columns(2)
-            with col1:
-                d_date = st.date_input("Date", value=date.today())
-                meal_type = st.selectbox("Meal Type", ["Breakfast", "Lunch", "Dinner", "Snack", "Other"])
-                meal = st.text_input("What did you eat?")
-            with col2:
-                calories = st.number_input("Calories", 0, 2000, 600)
-                protein = st.number_input("Protein (g)", 0.0, 200.0, 30.0)
-                carbs = st.number_input("Carbs (g)", 0.0, 300.0, 60.0)
-                fat = st.number_input("Fat (g)", 0.0, 150.0, 20.0)
-            notes = st.text_input("Notes (optional)")
+        with st.container(border=True):   # ← Border around the whole tab content
+            st.subheader("Log Today's Meal")
             
-            if st.form_submit_button("✅ Log Meal"):
-                c.execute("INSERT INTO diet VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
-                         (str(d_date), meal_type, meal, calories, protein, carbs, fat, notes))
-                conn.commit()
-                st.success("✅ Meal logged!")
-                st.rerun()
+            with st.form("log_diet"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    d_date = st.date_input("Date", value=date.today())
+                    meal_type = st.selectbox("Meal Type", ["Breakfast", "Lunch", "Dinner", "Snack", "Other"])
+                    meal = st.text_input("What did you eat?")
+                with col2:
+                    calories = st.number_input("Calories", 0, 2000, 600)
+                    protein = st.number_input("Protein (g)", 0.0, 200.0, 30.0)
+                    carbs = st.number_input("Carbs (g)", 0.0, 300.0, 60.0)
+                    fat = st.number_input("Fat (g)", 0.0, 150.0, 20.0)
+                notes = st.text_input("Notes (optional)")
+                
+                if st.form_submit_button("✅ Log Meal"):
+                    c.execute("INSERT INTO diet VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
+                             (str(d_date), meal_type, meal, calories, protein, carbs, fat, notes))
+                    conn.commit()
+                    st.success("✅ Meal logged!")
+                    st.rerun()
 
+        # Diet History
         df = pd.read_sql("SELECT * FROM diet ORDER BY date DESC", conn)
         if not df.empty:
-            st.subheader("Diet History")
-            st.dataframe(df, width='stretch')
+            with st.container(border=True):
+                st.subheader("Diet History")
+                st.dataframe(df, width='stretch')
 
     # ====================== GROCERY SHOPPING LIST TAB ======================
     with tab2:
-        st.subheader("🛒 Grocery Shopping List")
+        with st.container(border=True):   # ← Border around Grocery List
+            st.subheader("🛒 Grocery Shopping List")
 
-        # Add new grocery item
-        with st.form("add_grocery"):
-            item = st.text_input("Grocery Item")
-            quantity = st.text_input("Quantity (e.g. 2kg, 1 dozen, 500ml)", "1")
-            category = st.selectbox("Category", ["Fruits", "Vegetables", "Protein", "Dairy", "Grains", 
-                                                "Snacks", "Beverages", "Other"])
-            
-            if st.form_submit_button("➕ Add to List"):
-                if item:
-                    c.execute("""INSERT INTO grocery_list (item, quantity, category, bought) 
-                                 VALUES (?, ?, ?, 0)""", (item.strip(), quantity, category))
+            # Add new grocery item
+            with st.form("add_grocery"):
+                col1, col2, col3 = st.columns([3, 2, 2])
+                with col1:
+                    item = st.text_input("Grocery Item")
+                with col2:
+                    quantity = st.text_input("Quantity", "1")
+                with col3:
+                    category = st.selectbox("Category", ["Fruits", "Vegetables", "Protein", "Dairy", 
+                                                        "Grains", "Snacks", "Beverages", "Other"])
+                
+                if st.form_submit_button("➕ Add to List"):
+                    if item:
+                        c.execute("""INSERT INTO grocery_list (item, quantity, category, bought) 
+                                     VALUES (?, ?, ?, 0)""", (item.strip(), quantity, category))
+                        conn.commit()
+                        st.success(f"Added {item} to shopping list")
+                        st.rerun()
+
+            # Create grocery_list table if it doesn't exist
+            c.execute('''CREATE TABLE IF NOT EXISTS grocery_list 
+                         (id INTEGER PRIMARY KEY, item TEXT, quantity TEXT, category TEXT, bought INTEGER DEFAULT 0)''')
+            conn.commit()
+
+            # Load grocery items
+            grocery_df = pd.read_sql("SELECT * FROM grocery_list ORDER BY category, item", conn)
+
+            if not grocery_df.empty:
+                st.subheader("Items to Buy")
+                for category in grocery_df['category'].unique():
+                    cat_items = grocery_df[grocery_df['category'] == category]
+                    if not cat_items.empty:
+                        with st.container(border=True):
+                            st.write(f"**{category}**")
+                            for _, row in cat_items.iterrows():
+                                col1, col2, col3 = st.columns([0.65, 0.25, 0.1])
+                                with col1:
+                                    checked = st.checkbox(f"{row['item']} ({row['quantity']})", 
+                                                        value=bool(row['bought']), 
+                                                        key=f"groc_{row['id']}")
+                                    if checked != bool(row['bought']):
+                                        c.execute("UPDATE grocery_list SET bought = ? WHERE id = ?", 
+                                                 (int(checked), row['id']))
+                                        conn.commit()
+                                        st.rerun()
+                                with col2:
+                                    st.caption(row['category'])
+                                with col3:
+                                    if st.button("🗑️", key=f"del_groc_{row['id']}"):
+                                        c.execute("DELETE FROM grocery_list WHERE id=?", (row['id'],))
+                                        conn.commit()
+                                        st.rerun()
+
+                if st.button("🗑️ Clear All Bought Items"):
+                    c.execute("DELETE FROM grocery_list WHERE bought = 1")
                     conn.commit()
-                    st.success(f"Added {item} to shopping list")
+                    st.success("Cleared bought items!")
                     st.rerun()
-
-        # Create grocery_list table if it doesn't exist
-        c.execute('''CREATE TABLE IF NOT EXISTS grocery_list 
-                     (id INTEGER PRIMARY KEY, item TEXT, quantity TEXT, category TEXT, bought INTEGER DEFAULT 0)''')
-        conn.commit()
-
-        # Load grocery items
-        grocery_df = pd.read_sql("SELECT * FROM grocery_list ORDER BY category, item", conn)
-
-        if not grocery_df.empty:
-            st.subheader("Shopping List")
-
-            # Group by category
-            for category in grocery_df['category'].unique():
-                cat_items = grocery_df[grocery_df['category'] == category]
-                if not cat_items.empty:
-                    st.write(f"**{category}**")
-                    for _, row in cat_items.iterrows():
-                        col1, col2, col3 = st.columns([0.6, 0.25, 0.15])
-                        with col1:
-                            checked = st.checkbox(f"{row['item']} ({row['quantity']})", 
-                                                value=bool(row['bought']), 
-                                                key=f"groc_{row['id']}")
-                            if checked != bool(row['bought']):
-                                c.execute("UPDATE grocery_list SET bought = ? WHERE id = ?", 
-                                         (int(checked), row['id']))
-                                conn.commit()
-                                st.rerun()
-                        with col2:
-                            st.caption(row['category'])
-                        with col3:
-                            if st.button("🗑️", key=f"del_groc_{row['id']}"):
-                                c.execute("DELETE FROM grocery_list WHERE id=?", (row['id'],))
-                                conn.commit()
-                                st.rerun()
-
-            # Clear bought items button
-            if st.button("🗑️ Clear All Bought Items"):
-                c.execute("DELETE FROM grocery_list WHERE bought = 1")
-                conn.commit()
-                st.success("Cleared bought items!")
-                st.rerun()
-
-        else:
-            st.info("Your grocery list is empty. Add items above.")
+            else:
+                st.info("Your grocery list is empty. Add items using the form above.")
 
 # ====================== INVESTMENTS - Improved with Cost Basis & P&L ======================
 elif page == "💰 Investments":
