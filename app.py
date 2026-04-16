@@ -158,7 +158,7 @@ elif page == "😴 Sleep":
 elif page == "🍽️ Diet":
     st.header("🍽️ Diet Tracker")
 
-    tab1, tab2 = st.tabs(["📝 Log Meal", "🛒 Grocery Shopping List"])
+    tab1, tab2 = st.tabs(["📝 Log Meal" • "🛒 Grocery Shopping List"])
 
     # ====================== LOG MEAL TAB ======================
     with tab1:
