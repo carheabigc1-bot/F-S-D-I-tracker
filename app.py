@@ -253,6 +253,49 @@ elif page == "💰 Investments":
 
     else:
         st.info("No investments added yet. Use the form above to start building your portfolio.")
+
+# ====================== TO-DO LIST ======================
+elif page == "✅ To-Do List":
+    st.header("✅ To-Do List")
+
+    with st.form("add_todo"):
+        task = st.text_input("New Task")
+        due = st.date_input("Due Date", value=date.today())
+        priority = st.selectbox("Priority", ["High", "Medium", "Low"])
+        if st.form_submit_button("➕ Add Task"):
+            c.execute("INSERT INTO todos (task, due_date, priority, completed) VALUES (?, ?, ?, 0)",
+                     (task, str(due), priority))
+            conn.commit()
+            st.success("✅ Task added!")
+            st.rerun()
+
+    df = pd.read_sql("SELECT * FROM todos ORDER BY completed, due_date", conn)
+    if not df.empty:
+        st.subheader("Your Tasks")
+        for _, row in df.iterrows():
+            col1, col2, col3, col4 = st.columns([0.6, 0.15, 0.15, 0.1])
+            with col1:
+                checked = st.checkbox(row['task'], value=bool(row['completed']), key=f"todo_{row['id']}")
+                if checked != bool(row['completed']):
+                    c.execute("UPDATE todos SET completed = ? WHERE id = ?", (int(checked), row['id']))
+                    conn.commit()
+                    st.rerun()
+            with col2:
+                st.caption(f"Due: {row['due_date']}")
+            with col3:
+                st.caption(row['priority'])
+            with col4:
+                if st.button("🗑️", key=f"del_todo_{row['id']}"):
+                    c.execute("DELETE FROM todos WHERE id=?", (row['id'],))
+                    conn.commit()
+                    st.rerun()
+
+        if st.button("🗑️ Clear Completed Tasks"):
+            c.execute("DELETE FROM todos WHERE completed = 1")
+            conn.commit()
+            st.success("Cleared completed tasks!")
+            st.rerun()
+            
 # ====================== PROJECTS ======================
 elif page == "📋 Projects":
     st.header("📋 Projects & Goals")
