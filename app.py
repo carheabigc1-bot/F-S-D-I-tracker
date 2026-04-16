@@ -41,7 +41,7 @@ if page == "📊 Dashboard":
     st.markdown("<p style='text-align: center; color: #888; margin-bottom: 30px;'>Track Fitness • Sleep • Diet • Investments • Tasks • Projects</p>", 
                 unsafe_allow_html=True)
 
-    # Load data
+    # Load data from all sections
     inv_df = pd.read_sql("SELECT * FROM investments", conn)
     fit_df = pd.read_sql("SELECT * FROM fitness", conn)
     sleep_df = pd.read_sql("SELECT * FROM sleep", conn)
@@ -85,7 +85,7 @@ if page == "📊 Dashboard":
             st.metric("Pending Tasks", len(todo_df))
             if not todo_df.empty:
                 for _, task in todo_df.head(5).iterrows():
-                    st.write(f"• {task['task']} — Due: {task['due_date']}")
+                    st.write(f"• {task['task']} ({task['priority']}) — Due: {task['due_date']}")
 
     with col_right:
         # Weekly Planning Calendar - Bordered on the right
@@ -95,7 +95,34 @@ if page == "📊 Dashboard":
             st.caption(f"Week of {today.strftime('%B %d, %Y')}")
 
             days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-            start_of_week = today - pd.Timedelta(days=today.week
+            start_of_week = today - pd.Timedelta(days=today.weekday())
+
+            for i, day_name in enumerate(days):
+                day_date = start_of_week + pd.Timedelta(days=i)
+                with st.expander(f"{day_name} ({day_date.strftime('%b %d')})", 
+                               expanded=(day_date == today)):
+                    goal = st.text_input(f"Main Goal - {day_name}", key=f"goal_{i}")
+                    workout = st.checkbox(f"🏋️ Workout planned", key=f"workout_{i}")
+                    notes = st.text_area("Notes", height=60, key=f"notes_{i}")
+                    
+                    if st.button(f"Save {day_name}", key=f"save_{i}"):
+                        st.success(f"Saved plan for {day_name}!")
+
+            st.caption("Tip: Expand each day to plan your week.")
+
+    st.divider()
+
+    # Bottom row - Active Projects
+    with st.container(border=True):
+        st.subheader("📋 Active Projects")
+        if not proj_df.empty:
+            for _, p in proj_df.head(6).iterrows():
+                st.progress(p['progress']/100, text=f"{p['name']} — {p['progress']}%")
+        else:
+            st.info("No active projects yet.")
+
+    st.info("Use the sidebar to log new data in any section.")
+    
 # ====================== FITNESS ======================
 elif page == "🏋️ Fitness":
     st.header("🏋️ Fitness Tracker")
