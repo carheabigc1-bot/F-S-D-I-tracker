@@ -40,7 +40,7 @@ if page == "📊 Dashboard":
     proj_df = pd.read_sql("SELECT * FROM projects WHERE status != 'Completed'", conn)
 
     # Portfolio Box
-    with st.container((border=True):
+    with st.container(border=True):
         st.subheader("💰 Investments")
         col1, col2 = st.columns(2)
         with col1:
