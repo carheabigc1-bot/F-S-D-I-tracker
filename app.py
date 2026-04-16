@@ -183,69 +183,65 @@ elif page == "🍽️ Diet":
         st.subheader("Diet History")
         st.dataframe(df, width='stretch')
 
-# ====================== INVESTMENTS - With Cost Basis & P&L ======================
+# ====================== INVESTMENTS - Improved with Cost Basis & P&L ======================
 elif page == "💰 Investments":
     st.header("💰 Investments Tracker")
 
-    # --- Add New Investment with Cost Basis ---
+    # Add New Investment
     with st.form("add_investment"):
         col1, col2, col3 = st.columns(3)
         with col1:
-            ticker = st.text_input("Stock Ticker", placeholder="AAPL").upper()
+            ticker = st.text_input("Stock Ticker", placeholder="AAPL").upper().strip()
         with col2:
-            shares = st.number_input("Number of Shares", min_value=0.01, step=0.1)
+            shares = st.number_input("Number of Shares", min_value=0.01, step=0.1, value=10.0)
         with col3:
-            cost_per_share = st.number_input("Your Cost per Share ($)", min_value=0.01, step=0.01)
+            cost_per_share = st.number_input("Your Cost per Share ($)", min_value=0.01, step=0.01, value=50.0)
         
         if st.form_submit_button("➕ Add Investment"):
             if ticker and shares > 0 and cost_per_share > 0:
                 try:
-                    # Get current market price
-                    current_price = yf.Ticker(ticker).history(period="1d")['Close'].iloc[-1]
+                    stock = yf.Ticker(ticker)
+                    current_price = stock.history(period="1d")['Close'].iloc[-1]
                     
-                    c.execute("""INSERT INTO investments 
-                                 (date, ticker, shares, price) 
-                                 VALUES (?, ?, ?, ?)""", 
+                    c.execute("INSERT INTO investments VALUES (?, ?, ?, ?)", 
                              (str(date.today()), ticker, shares, cost_per_share))
                     conn.commit()
                     st.success(f"✅ Added {shares} shares of {ticker} @ ${cost_per_share:.2f}")
                     st.rerun()
                 except:
-                    st.error("❌ Invalid ticker or no internet connection")
+                    st.error(f"❌ Could not fetch data for {ticker}. Please check ticker symbol.")
 
-    # Refresh button
     if st.button("🔄 Refresh Live Prices"):
         st.rerun()
 
-    # ====================== PORTFOLIO WITH P&L ======================
+    # Portfolio Display
     df = pd.read_sql("SELECT * FROM investments", conn)
     
     if not df.empty:
         st.subheader("Your Portfolio with Profit & Loss")
 
-        # Group by ticker
         portfolio = df.groupby('ticker').agg({
             'shares': 'sum',
-            'price': 'mean'        # average cost basis
+            'price': 'mean'           # average cost basis
         }).reset_index()
 
-        # Get current market prices
         portfolio['current_price'] = portfolio['ticker'].apply(
-            lambda x: round(yf.Ticker(x).history(period="1d")['Close'].iloc[-1], 2) 
+            lambda x: round(yf.Ticker(x).history(period="1d")['Close'].iloc[-1], 4) 
             if not yf.Ticker(x).history(period="1d").empty else 0)
 
-        # Calculate P&L
         portfolio['cost_basis'] = round(portfolio['shares'] * portfolio['price'], 2)
         portfolio['market_value'] = round(portfolio['shares'] * portfolio['current_price'], 2)
         portfolio['unrealized_pnl'] = round(portfolio['market_value'] - portfolio['cost_basis'], 2)
-        portfolio['pnl_percent'] = round((portfolio['unrealized_pnl'] / portfolio['cost_basis']) * 100, 2)
+        portfolio['pnl_percent'] = round((portfolio['unrealized_pnl'] / portfolio['cost_basis']) * 100, 2) if portfolio['cost_basis'].sum() > 0 else 0
 
-        # Display nice table
-        display_df = portfolio[['ticker', 'shares', 'price', 'current_price', 
-                               'cost_basis', 'market_value', 'unrealized_pnl', 'pnl_percent']]
-        st.dataframe(display_df, width='stretch', hide_index=True)
+        # Display table
+        st.dataframe(
+            portfolio[['ticker', 'shares', 'price', 'current_price', 'cost_basis', 'market_value', 'unrealized_pnl', 'pnl_percent']],
+            width='stretch',
+            hide_index=True
+        )
 
-        # Summary metrics
+        # Summary Metrics
         total_cost = portfolio['cost_basis'].sum()
         total_value = portfolio['market_value'].sum()
         total_pnl = portfolio['unrealized_pnl'].sum()
@@ -260,22 +256,22 @@ elif page == "💰 Investments":
             st.metric("Total Unrealized P&L", f"${total_pnl:,.2f}", 
                      delta=f"{total_pnl_pct:.2f}%")
 
-        # Pie Chart
-        fig = px.pie(portfolio, values='market_value', names='ticker', title="Portfolio Allocation by Market Value")
+        # Portfolio Pie Chart
+        fig = px.pie(portfolio, values='market_value', names='ticker', title="Portfolio Allocation")
         st.plotly_chart(fig, width='stretch')
 
-        # Delete functionality
+        # Delete Section
         st.subheader("🗑️ Remove Holdings")
-        ticker_to_delete = st.selectbox("Select Ticker to Delete", portfolio['ticker'].unique())
-        if st.button("🗑️ Delete All Shares of this Ticker", type="primary"):
-            c.execute("DELETE FROM investments WHERE ticker = ?", (ticker_to_delete,))
-            conn.commit()
-            st.success(f"Deleted all holdings of {ticker_to_delete}")
-            st.rerun()
+        if not portfolio.empty:
+            ticker_to_delete = st.selectbox("Select Ticker to Delete", portfolio['ticker'].unique())
+            if st.button("🗑️ Delete All Shares of this Ticker", type="primary"):
+                c.execute("DELETE FROM investments WHERE ticker = ?", (ticker_to_delete,))
+                conn.commit()
+                st.success(f"Deleted all holdings of {ticker_to_delete}")
+                st.rerun()
 
     else:
-        st.info("No investments added yet. Use the form above to start tracking your portfolio with P&L.")
-        
+        st.info("No investments added yet. Use the form above to begin tracking.")
 # ====================== TO-DO LIST ======================
 elif page == "✅ To-Do List":
     st.header("✅ To-Do List")
