@@ -155,7 +155,7 @@ elif page == "😴 Sleep":
         st.dataframe(df, width='stretch')
 
 # ====================== DIET TRACKER - Cleaner Layout ======================
-elif page == "🍽️ Diet":
+elif page == "🍽️ Diet & grocery list":
     st.header("🍽️ Diet Tracker")
 
     # Use two clear sections with expanders (much cleaner on mobile + desktop)
