@@ -28,7 +28,7 @@ page = st.sidebar.radio("Navigation",
     ["📊 Dashboard", "🏋️ Fitness", "😴 Sleep", "🍽️ Diet", "💰 Investments", 
      "✅ To-Do List", "📋 Projects"], label_visibility="collapsed")
 
-# ====================== DASHBOARD - SHOWS ALL SECTIONS ======================
+# ====================== DASHBOARD ======================
 if page == "📊 Dashboard":
     st.header("📊 Daily Overview")
 
@@ -39,34 +39,67 @@ if page == "📊 Dashboard":
     todo_df = pd.read_sql("SELECT * FROM todos WHERE completed = 0", conn)
     proj_df = pd.read_sql("SELECT * FROM projects WHERE status != 'Completed'", conn)
 
-    col1, col2, col3, col4 = st.columns(4)
+    # Portfolio Box
+    with st.container():
+        st.subheader("💰 Investments")
+        col1, col2 = st.columns(2)
+        with col1:
+            if not inv_df.empty:
+                portfolio = inv_df.groupby('ticker')['shares'].sum().reset_index()
+                portfolio['current_price'] = portfolio['ticker'].apply(
+                    lambda x: yf.Ticker(x).history(period="1d")['Close'].iloc[-1] 
+                    if not yf.Ticker(x).history(period="1d").empty else 0)
+                total_value = (portfolio['shares'] * portfolio['current_price']).sum()
+                st.metric("Total Portfolio Value", f"${total_value:,.2f}")
+            else:
+                st.metric("Total Portfolio Value", "$0.00")
+        with col2:
+            st.metric("Number of Holdings", len(inv_df['ticker'].unique()) if not inv_df.empty else 0)
+
+    st.divider()   # Nice horizontal line separator
+
+    # Fitness + Sleep + Diet in columns
+    col1, col2, col3 = st.columns(3)
+
     with col1:
-        if not inv_df.empty:
-            portfolio = inv_df.groupby('ticker')['shares'].sum().reset_index()
-            portfolio['current_price'] = portfolio['ticker'].apply(
-                lambda x: yf.Ticker(x).history(period="1d")['Close'].iloc[-1] 
-                if not yf.Ticker(x).history(period="1d").empty else 0)
-            total = (portfolio['shares'] * portfolio['current_price']).sum()
-            st.metric("💰 Portfolio Value", f"${total:,.2f}")
-        else:
-            st.metric("💰 Portfolio Value", "$0.00")
+        with st.container(border=True):
+            st.subheader("🏋️ Fitness")
+            st.metric("Workouts Logged", len(fit_df))
 
-    with col2: st.metric("🏋️ Workouts", len(fit_df))
-    with col3: st.metric("😴 Avg Sleep", f"{sleep_df['hours'].mean():.1f} hrs" if not sleep_df.empty else "—")
-    with col4: st.metric("✅ Pending Tasks", len(todo_df))
+    with col2:
+        with st.container(border=True):
+            st.subheader("😴 Sleep")
+            avg_sleep = sleep_df['hours'].mean() if not sleep_df.empty else 0
+            st.metric("Average Sleep", f"{avg_sleep:.1f} hrs")
 
-    # Pending Tasks
-    if not todo_df.empty:
-        st.subheader("📌 Pending Tasks")
-        for _, t in todo_df.head(6).iterrows():
-            st.write(f"• {t['task']} ({t['priority']}) — Due {t['due_date']}")
+    with col3:
+        with st.container(border=True):
+            st.subheader("🍽️ Diet")
+            today_cal = diet_df[diet_df['date'] == str(date.today())]['calories'].sum() if not diet_df.empty else 0
+            st.metric("Calories Today", f"{today_cal:.0f}")
 
-    # Active Projects
-    if not proj_df.empty:
-        st.subheader("📋 Active Projects")
-        for _, p in proj_df.head(5).iterrows():
-            st.progress(p['progress']/100, text=f"{p['name']} — {p['progress']}%")
+    st.divider()
 
+    # Tasks and Projects
+    col1, col2 = st.columns(2)
+
+    with col1:
+        with st.container(border=True):
+            st.subheader("✅ To-Do List")
+            st.metric("Pending Tasks", len(todo_df))
+            if not todo_df.empty:
+                for _, t in todo_df.head(5).iterrows():
+                    st.write(f"• {t['task']} — Due {t['due_date']}")
+
+    with col2:
+        with st.container(border=True):
+            st.subheader("📋 Projects")
+            st.metric("Active Projects", len(proj_df))
+            if not proj_df.empty:
+                for _, p in proj_df.head(4).iterrows():
+                    st.progress(p['progress']/100, text=f"{p['name']} — {p['progress']}%")
+
+    st.info("Use the sidebar to log new data in any section.")
 # ====================== FITNESS ======================
 elif page == "🏋️ Fitness":
     st.header("🏋️ Fitness Tracker")
