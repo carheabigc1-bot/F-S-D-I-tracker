@@ -23,7 +23,7 @@ st.set_page_config(page_title="My All-in-One Life Tracker", layout="wide", page_
 # Centered Main Title (visible on ALL pages)
 st.markdown("""
     <h1 style='text-align: center; margin-bottom: 10px;'>
-        🏋️‍♂️💰 My All-in-One Life Tracker
+        🏋️‍♂️💰😴🍽️ ✅📋 My All-in-One Life Tracker
     </h1>
 """, unsafe_allow_html=True)
 
