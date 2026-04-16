@@ -183,87 +183,76 @@ elif page == "🍽️ Diet":
         st.subheader("Diet History")
         st.dataframe(df, width='stretch')
 
-# ====================== INVESTMENTS ======================
+# ====================== INVESTMENTS (Yahoo Finance + Delete) ======================
 elif page == "💰 Investments":
     st.header("💰 Investments Tracker")
 
+    # --- Add New Investment ---
     with st.form("add_investment"):
         col_a, col_b = st.columns(2)
         with col_a:
-            ticker = st.text_input("Stock Ticker", placeholder="AAPL").upper()
+            ticker = st.text_input("Stock Ticker (e.g. AAPL, TSLA)", placeholder="AAPL").upper()
         with col_b:
             shares = st.number_input("Number of Shares", min_value=0.01, step=0.1)
+        
         if st.form_submit_button("➕ Add Investment"):
             if ticker:
                 try:
-                    price = yf.Ticker(ticker).history(period="1d")['Close'].iloc[-1]
+                    stock = yf.Ticker(ticker)
+                    current_price = stock.history(period="1d")['Close'].iloc[-1]
                     c.execute("INSERT INTO investments VALUES (?, ?, ?, ?)", 
-                             (str(date.today()), ticker, shares, round(price, 2)))
+                             (str(date.today()), ticker, shares, round(current_price, 2)))
                     conn.commit()
-                    st.success(f"✅ Added {shares} shares of {ticker}")
+                    st.success(f"✅ Added {shares} shares of {ticker} at ${current_price:.2f}")
                     st.rerun()
                 except:
-                    st.error("❌ Invalid ticker")
+                    st.error("❌ Invalid ticker or no internet connection")
 
+    # --- Live Refresh Button ---
     if st.button("🔄 Refresh Live Prices"):
         st.rerun()
 
+    # --- Show Portfolio with Delete Option ---
     df = pd.read_sql("SELECT * FROM investments", conn)
+    
     if not df.empty:
-        portfolio = df.groupby('ticker')['shares'].sum().reset_index()
+        st.subheader("Your Current Holdings")
+
+        # Group by ticker for cleaner view
+        portfolio = df.groupby('ticker').agg({
+            'shares': 'sum',
+            'price': 'mean'   # average cost basis
+        }).reset_index()
+
         portfolio['current_price'] = portfolio['ticker'].apply(
             lambda x: round(yf.Ticker(x).history(period="1d")['Close'].iloc[-1], 2) 
             if not yf.Ticker(x).history(period="1d").empty else 0)
+        
         portfolio['value'] = round(portfolio['shares'] * portfolio['current_price'], 2)
+        portfolio['unrealized_pnl'] = round(portfolio['value'] - (portfolio['shares'] * portfolio['price']), 2)
 
-        st.metric("Total Portfolio Value", f"${portfolio['value'].sum():,.2f}")
-        st.dataframe(portfolio, width='stretch')
+        st.dataframe(portfolio[['ticker', 'shares', 'price', 'current_price', 'value', 'unrealized_pnl']], 
+                    width='stretch', hide_index=True)
 
-        fig = px.pie(portfolio, values='value', names='ticker', title="Portfolio Breakdown")
+        total_value = portfolio['value'].sum()
+        st.metric("💰 Total Portfolio Value", f"${total_value:,.2f}")
+
+        # Pie Chart
+        fig = px.pie(portfolio, values='value', names='ticker', title="Portfolio Allocation")
         st.plotly_chart(fig, width='stretch')
 
-# ====================== TO-DO LIST ======================
-elif page == "✅ To-Do List":
-    st.header("✅ To-Do List")
-
-    with st.form("add_todo"):
-        task = st.text_input("New Task")
-        due = st.date_input("Due Date", value=date.today())
-        priority = st.selectbox("Priority", ["High", "Medium", "Low"])
-        if st.form_submit_button("➕ Add Task"):
-            c.execute("INSERT INTO todos (task, due_date, priority, completed) VALUES (?, ?, ?, 0)",
-                     (task, str(due), priority))
+        # --- Delete Ticker Section ---
+        st.subheader("🗑️ Remove Holdings")
+        ticker_to_delete = st.selectbox("Select Ticker to Delete", portfolio['ticker'].unique())
+        
+        if st.button("🗑️ Delete All Shares of this Ticker", type="primary"):
+            c.execute("DELETE FROM investments WHERE ticker = ?", (ticker_to_delete,))
             conn.commit()
-            st.success("✅ Task added!")
+            st.success(f"✅ Deleted all shares of {ticker_to_delete}")
             st.rerun()
 
-    df = pd.read_sql("SELECT * FROM todos ORDER BY completed, due_date", conn)
-    if not df.empty:
-        st.subheader("Your Tasks")
-        for _, row in df.iterrows():
-            col1, col2, col3, col4 = st.columns([0.6, 0.15, 0.15, 0.1])
-            with col1:
-                checked = st.checkbox(row['task'], value=bool(row['completed']), key=f"todo_{row['id']}")
-                if checked != bool(row['completed']):
-                    c.execute("UPDATE todos SET completed = ? WHERE id = ?", (int(checked), row['id']))
-                    conn.commit()
-                    st.rerun()
-            with col2:
-                st.caption(f"Due: {row['due_date']}")
-            with col3:
-                st.caption(row['priority'])
-            with col4:
-                if st.button("🗑️", key=f"del_todo_{row['id']}"):
-                    c.execute("DELETE FROM todos WHERE id=?", (row['id'],))
-                    conn.commit()
-                    st.rerun()
-
-        if st.button("🗑️ Clear Completed Tasks"):
-            c.execute("DELETE FROM todos WHERE completed = 1")
-            conn.commit()
-            st.success("Cleared completed tasks!")
-            st.rerun()
-
+    else:
+        st.info("No investments added yet. Use the form above to start building your portfolio.")
 # ====================== PROJECTS ======================
 elif page == "📋 Projects":
     st.header("📋 Projects & Goals")
