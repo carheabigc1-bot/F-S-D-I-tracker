@@ -28,10 +28,11 @@ page = st.sidebar.radio("Navigation",
     ["📊 Dashboard", "🏋️ Fitness", "😴 Sleep", "🍽️ Diet & grocery list", "💰 Investments", 
      "✅ To-Do List", "📋 Projects"], label_visibility="collapsed")
 
-# ====================== DASHBOARD ======================
+# ====================== DASHBOARD - WITH DAILY PLANNING CALENDAR ======================
 if page == "📊 Dashboard":
     st.header("📊 Daily Overview")
 
+    # Load data from all sections
     inv_df = pd.read_sql("SELECT * FROM investments", conn)
     fit_df = pd.read_sql("SELECT * FROM fitness", conn)
     sleep_df = pd.read_sql("SELECT * FROM sleep", conn)
@@ -39,67 +40,85 @@ if page == "📊 Dashboard":
     todo_df = pd.read_sql("SELECT * FROM todos WHERE completed = 0", conn)
     proj_df = pd.read_sql("SELECT * FROM projects WHERE status != 'Completed'", conn)
 
-    # Portfolio Box
-    with st.container(border=True):
-        st.subheader("💰 Investments")
-        col1, col2 = st.columns(2)
-        with col1:
+    # Top row with metrics + Daily Planning Calendar on the right
+    col1, col2 = st.columns([3, 2])
+
+    with col1:
+        # Main metrics
+        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+        with metric_col1:
             if not inv_df.empty:
                 portfolio = inv_df.groupby('ticker')['shares'].sum().reset_index()
                 portfolio['current_price'] = portfolio['ticker'].apply(
                     lambda x: yf.Ticker(x).history(period="1d")['Close'].iloc[-1] 
                     if not yf.Ticker(x).history(period="1d").empty else 0)
                 total_value = (portfolio['shares'] * portfolio['current_price']).sum()
-                st.metric("Total Portfolio Value", f"${total_value:,.2f}")
+                st.metric("💰 Portfolio Value", f"${total_value:,.2f}")
             else:
-                st.metric("Total Portfolio Value", "$0.00")
-        with col2:
-            st.metric("Number of Holdings", len(inv_df['ticker'].unique()) if not inv_df.empty else 0)
+                st.metric("💰 Portfolio Value", "$0.00")
 
-    st.divider()   # Nice horizontal line separator
+        with metric_col2:
+            st.metric("🏋️ Workouts", len(fit_df))
 
-    # Fitness + Sleep + Diet in columns
-    col1, col2, col3 = st.columns(3)
+        with metric_col3:
+            avg_sleep = sleep_df['hours'].mean() if not sleep_df.empty else 0
+            st.metric("😴 Avg Sleep", f"{avg_sleep:.1f} hrs")
 
-    with col1:
-        with st.container(border=True):
-            st.subheader("🏋️ Fitness")
-            st.metric("Workouts Logged", len(fit_df))
+        with metric_col4:
+            st.metric("✅ Pending Tasks", len(todo_df))
 
     with col2:
+        # Daily Planning Calendar - Bordered section on the right
         with st.container(border=True):
-            st.subheader("😴 Sleep")
-            avg_sleep = sleep_df['hours'].mean() if not sleep_df.empty else 0
-            st.metric("Average Sleep", f"{avg_sleep:.1f} hrs")
+            st.subheader("📅 Today's Plan")
+            today = date.today()
+            st.caption(f"**{today.strftime('%A, %B %d, %Y')}**")
 
-    with col3:
-        with st.container(border=True):
-            st.subheader("🍽️ Diet")
-            today_cal = diet_df[diet_df['date'] == str(date.today())]['calories'].sum() if not diet_df.empty else 0
-            st.metric("Calories Today", f"{today_cal:.0f}")
+            # Quick daily planning inputs
+            with st.form("daily_plan"):
+                wake_up = st.time_input("Wake Up Time", value=datetime.strptime("07:00", "%H:%M").time())
+                workout_time = st.time_input("Workout Time", value=datetime.strptime("17:00", "%H:%M").time())
+                main_goal = st.text_input("Main Goal for Today")
+                notes = st.text_area("Additional Notes / Reminders", height=100)
+                
+                if st.form_submit_button("✅ Save Today's Plan"):
+                    st.success("Today's plan saved! (You can expand this feature later)")
+                    st.rerun()
+
+            # Quick links to other sections
+            st.caption("Quick Actions:")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                if st.button("Log Workout", use_container_width=True):
+                    st.switch_page("🏋️ Fitness")   # Note: switch_page works in newer Streamlit
+            with col_b:
+                if st.button("Log Meal", use_container_width=True):
+                    st.switch_page("🍽️ Diet")
 
     st.divider()
 
-    # Tasks and Projects
-    col1, col2 = st.columns(2)
+    # Second row - Pending Tasks and Active Projects
+    col3, col4 = st.columns(2)
 
-    with col1:
+    with col3:
         with st.container(border=True):
-            st.subheader("✅ To-Do List")
-            st.metric("Pending Tasks", len(todo_df))
+            st.subheader("📌 Pending To-Do Tasks")
             if not todo_df.empty:
-                for _, t in todo_df.head(5).iterrows():
-                    st.write(f"• {t['task']} — Due {t['due_date']}")
+                for _, task in todo_df.head(8).iterrows():
+                    st.write(f"• {task['task']} ({task['priority']}) — Due: {task['due_date']}")
+            else:
+                st.info("No pending tasks. Great job!")
 
-    with col2:
+    with col4:
         with st.container(border=True):
-            st.subheader("📋 Projects")
-            st.metric("Active Projects", len(proj_df))
+            st.subheader("📋 Active Projects")
             if not proj_df.empty:
-                for _, p in proj_df.head(4).iterrows():
+                for _, p in proj_df.head(5).iterrows():
                     st.progress(p['progress']/100, text=f"{p['name']} — {p['progress']}%")
+            else:
+                st.info("No active projects yet.")
 
-    st.info("Use the sidebar to log new data in any section.")
+    st.info("Use the sidebar to log new data or manage your tasks and projects.")
 # ====================== FITNESS ======================
 elif page == "🏋️ Fitness":
     st.header("🏋️ Fitness Tracker")
