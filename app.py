@@ -261,10 +261,11 @@ elif page == "🍽️ Diet":
                                         conn.commit()
                                         st.rerun()
 
-# ====================== INVESTMENTS ======================
+# ====================== INVESTMENTS - With Totals for All Columns ======================
 elif page == "💰 Investments":
     st.header("💰 Investments Tracker")
 
+    # Add New Investment
     with st.form("add_investment"):
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -290,23 +291,67 @@ elif page == "💰 Investments":
         st.rerun()
 
     df = pd.read_sql("SELECT * FROM investments", conn)
+    
     if not df.empty:
-        portfolio = df.groupby('ticker').agg({'shares':'sum', 'price':'mean'}).reset_index()
+        st.subheader("Your Portfolio")
+
+        # Group by ticker and calculate totals
+        portfolio = df.groupby('ticker').agg({
+            'shares': 'sum',
+            'price': 'mean'           # average cost basis
+        }).reset_index()
+
         portfolio['current_price'] = portfolio['ticker'].apply(
-            lambda x: round(yf.Ticker(x).history(period="1d")['Close'].iloc[-1], 2) 
+            lambda x: round(yf.Ticker(x).history(period="1d")['Close'].iloc[-1], 4) 
             if not yf.Ticker(x).history(period="1d").empty else 0)
+
+        portfolio['cost_basis'] = round(portfolio['shares'] * portfolio['price'], 2)
         portfolio['market_value'] = round(portfolio['shares'] * portfolio['current_price'], 2)
-        portfolio['unrealized_pnl'] = round(portfolio['market_value'] - (portfolio['shares'] * portfolio['price']), 2)
+        portfolio['unrealized_pnl'] = round(portfolio['market_value'] - portfolio['cost_basis'], 2)
+        portfolio['pnl_percent'] = round((portfolio['unrealized_pnl'] / portfolio['cost_basis']) * 100, 2)
 
-        st.dataframe(portfolio, width='stretch', hide_index=True)
+        # Display main table
+        st.dataframe(
+            portfolio[['ticker', 'shares', 'price', 'current_price', 'cost_basis', 'market_value', 'unrealized_pnl', 'pnl_percent']],
+            width='stretch',
+            hide_index=True
+        )
 
-        st.subheader("🗑️ Delete Holdings")
+        # ====================== TOTALS ROW ======================
+        total_shares = portfolio['shares'].sum()
+        total_cost_basis = portfolio['cost_basis'].sum()
+        total_market_value = portfolio['market_value'].sum()
+        total_unrealized_pnl = portfolio['unrealized_pnl'].sum()
+        total_pnl_percent = round((total_unrealized_pnl / total_cost_basis) * 100, 2) if total_cost_basis > 0 else 0
+
+        st.divider()
+        st.subheader("📊 Portfolio Totals")
+        total_col1, total_col2, total_col3, total_col4 = st.columns(4)
+        with total_col1:
+            st.metric("Total Shares", f"{total_shares:,.2f}")
+        with total_col2:
+            st.metric("Total Cost Basis", f"${total_cost_basis:,.2f}")
+        with total_col3:
+            st.metric("Total Market Value", f"${total_market_value:,.2f}")
+        with total_col4:
+            st.metric("Total Unrealized P&L", f"${total_unrealized_pnl:,.2f}", 
+                     delta=f"{total_pnl_percent:.2f}%")
+
+        # Portfolio Pie Chart
+        fig = px.pie(portfolio, values='market_value', names='ticker', title="Portfolio Allocation by Market Value")
+        st.plotly_chart(fig, width='stretch')
+
+        # Delete Section
+        st.subheader("🗑️ Remove Holdings")
         ticker_to_delete = st.selectbox("Select Ticker to Delete", portfolio['ticker'].unique())
         if st.button("🗑️ Delete All Shares of this Ticker", type="primary"):
             c.execute("DELETE FROM investments WHERE ticker = ?", (ticker_to_delete,))
             conn.commit()
-            st.success(f"Deleted {ticker_to_delete}")
+            st.success(f"Deleted all holdings of {ticker_to_delete}")
             st.rerun()
+
+    else:
+        st.info("No investments added yet. Use the form above to start tracking.")
 
 # ====================== TO-DO LIST ======================
 elif page == "✅ To-Do List":
