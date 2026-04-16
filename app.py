@@ -29,11 +29,19 @@ page = st.sidebar.radio("Navigation",
     ["📊 Dashboard", "🏋️ Fitness", "😴 Sleep", "🍽️ Diet & grocery list", "💰 Investments", 
      "✅ To-Do List", "📋 Projects"], label_visibility="collapsed")
 
-# ====================== DASHBOARD - WITH WEEKLY PLANNING CALENDAR ======================
+# ====================== DASHBOARD - CENTERED TITLE + HORIZONTAL OVERVIEW ======================
 if page == "📊 Dashboard":
-    st.header("📊 Daily Overview")
+    # Centered Main Title
+    st.markdown("""
+        <h1 style='text-align: center; margin-bottom: 10px;'>
+            🏋️‍♂️💰 My All-in-One Life Tracker
+        </h1>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("<p style='text-align: center; color: #888; margin-bottom: 30px;'>Track Fitness • Sleep • Diet • Investments • Tasks • Projects</p>", 
+                unsafe_allow_html=True)
 
-    # Load data from all sections
+    # Load data
     inv_df = pd.read_sql("SELECT * FROM investments", conn)
     fit_df = pd.read_sql("SELECT * FROM fitness", conn)
     sleep_df = pd.read_sql("SELECT * FROM sleep", conn)
@@ -41,40 +49,47 @@ if page == "📊 Dashboard":
     todo_df = pd.read_sql("SELECT * FROM todos WHERE completed = 0", conn)
     proj_df = pd.read_sql("SELECT * FROM projects WHERE status != 'Completed'", conn)
 
-    # Top row: Metrics + Weekly Planning Calendar
-    col1, col2 = st.columns([3, 2])
+    # Main content area with two columns: Overview (left) + Weekly Plan (right)
+    col_overview, col_weekly = st.columns([2, 1])
 
-    with col1:
-        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-        with metric_col1:
-            if not inv_df.empty:
-                portfolio = inv_df.groupby('ticker')['shares'].sum().reset_index()
-                portfolio['current_price'] = portfolio['ticker'].apply(
-                    lambda x: yf.Ticker(x).history(period="1d")['Close'].iloc[-1] 
-                    if not yf.Ticker(x).history(period="1d").empty else 0)
-                total_value = (portfolio['shares'] * portfolio['current_price']).sum()
-                st.metric("💰 Portfolio Value", f"${total_value:,.2f}")
-            else:
-                st.metric("💰 Portfolio Value", "$0.00")
+    with col_overview:
+        # Horizontal Overview Metrics - Bordered Section
+        with st.container(border=True):
+            st.subheader("📊 Overview")
+            metric_row1 = st.columns(4)
+            with metric_row1[0]:
+                if not inv_df.empty:
+                    portfolio = inv_df.groupby('ticker')['shares'].sum().reset_index()
+                    portfolio['current_price'] = portfolio['ticker'].apply(
+                        lambda x: yf.Ticker(x).history(period="1d")['Close'].iloc[-1] 
+                        if not yf.Ticker(x).history(period="1d").empty else 0)
+                    total_value = (portfolio['shares'] * portfolio['current_price']).sum()
+                    st.metric("💰 Portfolio Value", f"${total_value:,.2f}")
+                else:
+                    st.metric("💰 Portfolio Value", "$0.00")
 
-        with metric_col2:
-            st.metric("🏋️ Workouts", len(fit_df))
+            with metric_row1[1]:
+                st.metric("🏋️ Workouts", len(fit_df))
 
-        with metric_col3:
-            avg_sleep = sleep_df['hours'].mean() if not sleep_df.empty else 0
-            st.metric("😴 Avg Sleep", f"{avg_sleep:.1f} hrs")
+            with metric_row1[2]:
+                avg_sleep = sleep_df['hours'].mean() if not sleep_df.empty else 0
+                st.metric("😴 Avg Sleep", f"{avg_sleep:.1f} hrs")
 
-        with metric_col4:
-            st.metric("✅ Pending Tasks", len(todo_df))
+            with metric_row1[3]:
+                st.metric("✅ Pending Tasks", len(todo_df))
 
-    with col2:
-        # Weekly Planning Calendar - Bordered section on the right
+            # Second row of metrics
+            if not diet_df.empty:
+                today_cal = diet_df[diet_df['date'] == str(date.today())]['calories'].sum()
+                st.metric("🍽️ Calories Today", f"{today_cal:.0f}")
+
+    with col_weekly:
+        # Weekly Planning Calendar - Bordered on the right
         with st.container(border=True):
             st.subheader("📅 Weekly Plan")
             today = date.today()
             st.caption(f"Week of {today.strftime('%B %d, %Y')}")
 
-            # Simple weekly planner (Monday to Sunday)
             days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
             start_of_week = today - pd.Timedelta(days=today.weekday())
 
@@ -93,10 +108,10 @@ if page == "📊 Dashboard":
 
     st.divider()
 
-    # Second row - Pending Tasks and Active Projects
-    col3, col4 = st.columns(2)
+    # Bottom row - Pending Tasks and Active Projects
+    col_tasks, col_projects = st.columns(2)
 
-    with col3:
+    with col_tasks:
         with st.container(border=True):
             st.subheader("📌 Pending To-Do Tasks")
             if not todo_df.empty:
@@ -105,7 +120,7 @@ if page == "📊 Dashboard":
             else:
                 st.info("No pending tasks today.")
 
-    with col4:
+    with col_projects:
         with st.container(border=True):
             st.subheader("📋 Active Projects")
             if not proj_df.empty:
