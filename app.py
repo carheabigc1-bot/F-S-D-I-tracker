@@ -19,7 +19,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY, name T
 conn.commit()
 
 # ====================== APP CONFIG ======================
-st.set_page_config(page_title="My Life Tracker", layout="stretch", page_icon="🏋️", initial_sidebar_state="expanded")
+st.set_page_config(page_title="My Life Tracker", layout="wide", page_icon="🏋️", initial_sidebar_state="expanded")
 
 st.title("🏋️‍♂️💰 My All-in-One Life Tracker")
 st.markdown("Track **Fitness • Sleep • Diet • Investments • Tasks • Projects**")
