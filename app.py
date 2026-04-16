@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-from datetime import date
+from datetime import date, datetime
 import yfinance as yf
 import plotly.express as px
 
@@ -16,6 +16,10 @@ c.execute('''CREATE TABLE IF NOT EXISTS diet (date TEXT, meal_type TEXT, meal TE
 c.execute('''CREATE TABLE IF NOT EXISTS todos (id INTEGER PRIMARY KEY, task TEXT, due_date TEXT, priority TEXT, completed INTEGER DEFAULT 0)''')
 c.execute('''CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY, name TEXT, description TEXT, status TEXT, due_date TEXT, progress INTEGER DEFAULT 0)''')
 c.execute('''CREATE TABLE IF NOT EXISTS grocery_list (id INTEGER PRIMARY KEY, item TEXT, quantity TEXT, category TEXT, bought INTEGER DEFAULT 0)''')
+
+# New table for Weekly Planner
+c.execute('''CREATE TABLE IF NOT EXISTS weekly_plan 
+             (id INTEGER PRIMARY KEY, week_start TEXT, day_name TEXT, goal TEXT, workout INTEGER DEFAULT 0, notes TEXT)''')
 conn.commit()
 
 # ====================== APP CONFIG ======================
@@ -83,16 +87,35 @@ if page == "📊 Dashboard":
             st.subheader("📅 Weekly Plan")
             today = date.today()
             st.caption(f"Week of {today.strftime('%B %d, %Y')}")
+
             days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
             start_of_week = today - pd.Timedelta(days=today.weekday())
+
             for i, day_name in enumerate(days):
                 day_date = start_of_week + pd.Timedelta(days=i)
+                week_start_str = start_of_week.strftime('%Y-%m-%d')
+                
                 with st.expander(f"{day_name} ({day_date.strftime('%b %d')})", expanded=(day_date == today)):
-                    st.text_input(f"Main Goal - {day_name}", key=f"goal_{i}")
-                    st.checkbox(f"🏋️ Workout planned", key=f"workout_{i}")
-                    st.text_area("Notes", height=60, key=f"notes_{i}")
+                    # Load existing plan if any
+                    c.execute("SELECT goal, workout, notes FROM weekly_plan WHERE week_start=? AND day_name=?", 
+                             (week_start_str, day_name))
+                    existing = c.fetchone()
+                    default_goal = existing[0] if existing else ""
+                    default_workout = bool(existing[1]) if existing else False
+                    default_notes = existing[2] if existing else ""
+
+                    goal = st.text_input(f"Main Goal - {day_name}", value=default_goal, key=f"goal_{i}")
+                    workout = st.checkbox(f"🏋️ Workout planned", value=default_workout, key=f"workout_{i}")
+                    notes = st.text_area("Notes", value=default_notes, height=60, key=f"notes_{i}")
+                    
                     if st.button(f"Save {day_name}", key=f"save_{i}"):
+                        c.execute("""INSERT OR REPLACE INTO weekly_plan 
+                                     (week_start, day_name, goal, workout, notes) 
+                                     VALUES (?, ?, ?, ?, ?)""", 
+                                 (week_start_str, day_name, goal, int(workout), notes))
+                        conn.commit()
                         st.success(f"Saved plan for {day_name}!")
+                        st.rerun()
 
     st.divider()
 
@@ -104,7 +127,7 @@ if page == "📊 Dashboard":
         else:
             st.info("No active projects yet.")
 
-# ====================== FITNESS (with Delete) ======================
+# ====================== FITNESS ======================
 elif page == "🏋️ Fitness":
     st.header("🏋️ Fitness Tracker")
 
@@ -137,7 +160,7 @@ elif page == "🏋️ Fitness":
                 st.success("Deleted!")
                 st.rerun()
 
-# ====================== SLEEP (with Delete) ======================
+# ====================== SLEEP ======================
 elif page == "😴 Sleep":
     st.header("😴 Sleep Tracker")
 
@@ -167,7 +190,7 @@ elif page == "😴 Sleep":
                 st.success("Deleted!")
                 st.rerun()
 
-# ====================== DIET (Two Vertical Bordered Sections) ======================
+# ====================== DIET ======================
 elif page == "🍽️ Diet":
     st.header("🍽️ Diet Tracker")
 
@@ -216,9 +239,6 @@ elif page == "🍽️ Diet":
                         st.success(f"Added {item}")
                         st.rerun()
 
-            c.execute('''CREATE TABLE IF NOT EXISTS grocery_list (id INTEGER PRIMARY KEY, item TEXT, quantity TEXT, category TEXT, bought INTEGER DEFAULT 0)''')
-            conn.commit()
-
             grocery_df = pd.read_sql("SELECT * FROM grocery_list ORDER BY category, item", conn)
 
             if not grocery_df.empty:
@@ -241,7 +261,7 @@ elif page == "🍽️ Diet":
                                         conn.commit()
                                         st.rerun()
 
-# ====================== INVESTMENTS (with Delete) ======================
+# ====================== INVESTMENTS ======================
 elif page == "💰 Investments":
     st.header("💰 Investments Tracker")
 
@@ -376,4 +396,4 @@ elif page == "📋 Projects":
                     conn.commit()
                     st.rerun()
 
-st.caption("💾 All data saved locally in tracker.db | Built by the one and only Carl A. Rhea with Python + Streamlit")
+st.caption("💾 All data saved locally in tracker.db | Built with Python + Streamlit")
