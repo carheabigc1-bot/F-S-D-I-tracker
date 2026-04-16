@@ -25,7 +25,7 @@ st.markdown("Track **Fitness • Sleep • Diet • Investments • Tasks • Pr
 
 # Use radio for permanent visible navigation
 page = st.sidebar.radio("Navigation", 
-    ["📊 Dashboard", "🏋️ Fitness", "😴 Sleep", "🍽️ Diet", "💰 Investments", 
+    ["📊 Dashboard", "🏋️ Fitness", "😴 Sleep", "🍽️ Diet & grocery list", "💰 Investments", 
      "✅ To-Do List", "📋 Projects"], label_visibility="collapsed")
 
 # ====================== DASHBOARD ======================
