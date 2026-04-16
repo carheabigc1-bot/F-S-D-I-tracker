@@ -376,4 +376,4 @@ elif page == "📋 Projects":
                     conn.commit()
                     st.rerun()
 
-st.caption("💾 All data saved locally in tracker.db | Built with Python + Streamlit")
+st.caption("💾 All data saved locally in tracker.db | Built by the one and only Carl A. Rhea with Python + Streamlit")
